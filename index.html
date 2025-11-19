@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>穿衣温度助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Amber Neutrals -->
+    <!-- Application Structure Plan: 
+        设计一个两栏式SPA。
+        1. 核心工具 - "穿搭计算器": 位于页面顶部，立即可用。用户输入环境温度，应用立即计算出所需的“衣物温度”（目标27°C - 环境温度）。然后，用户可以从分类（上装、下装）的衣物列表中点击选择，实时看到他们所选衣物的总温度，以及一个“体感”反馈（例如：偏冷、刚刚好、偏热）。这种设计将用户的核心需求（“我该穿什么？”）置于首位，提供了即时、实用的价值。
+        2. 参考图表 - "穿衣温度参考表": 位于计算器下方。使用两个水平条形图（一个用于上装，一个用于下装）清晰地展示每件衣物的“温度值”。这满足了用户对“图表”的明确要求，并作为计算器的数据参考，允许用户直观地比较不同衣物的保暖性。
+        这种“工具优先，参考在后”的结构，首先解决了用户的实际问题，然后提供了支持性的数据和上下文，使用户流程既实用又完整。
+    -->
+    <!-- Visualization & Content Choices: 
+        - 报告信息: “穿衣27度”理论，即 环境温度 + 衣物温度 = 27°C。
+        - 目标: 将此理论转化为一个实用的工具。
+        - 呈现方式: 一个交互式计算器模块。
+        - 交互: 用户输入数字（环境温度），点击按钮（选择衣物）。应用通过JS实时更新DOM中的文本（所需温度、已选温度、体感反馈）。
+        - 理由: 这是将一个抽象概念（27度法则）转化为具体、个性化建议的最直接方式。
+        - 库/方法: Vanilla JS。
+
+        - 报告信息: 各种衣物（包括裤子）及其对应的温度值。
+        - 目标: 直观地展示和比较每件衣物的保暖值。
+        - 呈现方式: 两个水平条形图（“上装”和“下装”）。
+        - 交互: 鼠标悬停时显示工具提示（Tooltip），包含衣物名称和准确温度值。
+        - 理由: 水平条形图非常适合比较具有长标签（衣物名称）的分类数据。将其分为两张图表可避免单一图表过于拥挤，提高可读性。
+        - 库/方法: Chart.js (Canvas)。
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', 'Helvetica Neue', 'Arial', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background-color: #fefcfb; /* Warm Neutral: Amber 50 */
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            border-radius: 0.5rem;
+            background-color: #ffffff;
+            padding: 1rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .chart-container-tops {
+            height: 500px;
+            max-height: 600px;
+        }
+        .chart-container-bottoms {
+            height: 350px;
+            max-height: 400px;
+        }
+        .clothing-item {
+            transition: all 0.2s ease-in-out;
+            border: 2px solid #fde68a; /* Amber 200 */
+            color: #92400e; /* Amber 800 */
+        }
+        .clothing-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .clothing-item.selected {
+            background-color: #b45309; /* Amber 700 */
+            color: #ffffff;
+            border-color: #b45309;
+        }
+        .feeling-cold { color: #2563eb; } /* Blue 600 */
+        .feeling-good { color: #16a34a; } /* Green 600 */
+        .feeling-hot { color: #dc2626; } /* Red 600 */
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <main class="container mx-auto max-w-4xl p-4 md:p-8 space-y-12">
+        
+        <header class="text-center space-y-2">
+            <h1 class="text-4xl font-bold text-amber-800">穿衣温度助手</h1>
+            <p class="text-lg text-gray-600">
+                科学穿搭，告别臃肿。本工具基于“27°C穿衣法则”：<br class="hidden sm:inline">
+                <span class="font-semibold">环境温度 + 衣物温度 ≈ 27°C</span> 时，体感最为舒适。
+            </p>
+        </header>
+
+        <!-- Section 1: Outfit Calculator -->
+        <section id="calculator" class="bg-white p-6 rounded-lg shadow-lg space-y-6">
+            <h2 class="text-2xl font-bold text-amber-700 border-b-2 border-amber-200 pb-2">今日穿搭计算器</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                <!-- Input -->
+                <div class="space-y-4">
+                    <label for="ambientTemp" class="block text-lg font-semibold text-gray-700">请输入今天的气温 (°C):</label>
+                    <input type="number" id="ambientTemp" placeholder="例如: 15" class="w-full p-3 border-2 border-amber-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent">
+                </div>
+                
+                <!-- Results -->
+                <div class="bg-amber-50 p-4 rounded-lg space-y-3 text-center md:text-left">
+                    <div class="text-lg">
+                        <span class="font-semibold text-gray-700">你需要衣物提供:</span>
+                        <span id="neededTemp" class="text-2xl font-bold text-amber-800 ml-2">--</span>
+                        <span class="font-semibold text-amber-800">°C</span>
+                    </div>
+                    <div class="text-lg">
+                        <span class="font-semibold text-gray-700">你已选择衣物:</span>
+                        <span id="currentTemp" class="text-2xl font-bold text-blue-700 ml-2">0</span>
+                        <span class="font-semibold text-blue-700">°C</span>
+                    </div>
+                    <div class="text-lg">
+                        <span class="font-semibold text-gray-700">当前体感:</span>
+                        <span id="feeling" class="text-2xl font-bold ml-2">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Clothing Selection -->
+            <div class="space-y-4">
+                <h3 class="text-xl font-semibold text-gray-700">选择上装:</h3>
+                <div id="topsContainer" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                    <!-- Tops will be populated by JS -->
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <h3 class="text-xl font-semibold text-gray-700">选择下装:</h3>
+                <div id="bottomsContainer" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                    <!-- Bottoms will be populated by JS -->
+                </div>
+            </div>
+             <button id="resetButton" class="w-full md:w-auto px-6 py-2 bg-amber-600 text-white font-semibold rounded-lg shadow hover:bg-amber-700 transition-colors">
+                重置选择
+            </button>
+        </section>
+
+        <!-- Section 2: Reference Charts -->
+        <section id="reference" class="space-y-8">
+            <h2 class="text-2xl font-bold text-amber-700 text-center border-b-2 border-amber-200 pb-2">穿衣温度参考表</h2>
+            
+            <p class="text-center text-gray-600">
+                这里是本应用所使用的衣物温度参考值。你可以通过上方的计算器来组合它们，以达到最佳的体感温度。
+            </p>
+
+            <div class="chart-container chart-container-tops">
+                <canvas id="topsChart"></canvas>
+            </div>
+            
+            <div class="chart-container chart-container-bottoms">
+                <canvas id="bottomsChart"></canvas>
+            </div>
+        </section>
+
+        <footer class="text-center text-gray-500 text-sm pt-8 border-t border-amber-200">
+            <p>&copy; 2025 穿衣温度助手. 灵感来源于 "27°C 穿衣法则".</p>
+        </footer>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            const TARGET_TEMP = 27;
+
+            const clothingData = {
+                tops: [
+                    { name: '背心/吊带', temp: 1 },
+                    { name: '短袖T恤', temp: 1 },
+                    { name: '薄款衬衫', temp: 2 },
+                    { name: '薄款长袖', temp: 2 },
+                    { name: '卫衣', temp: 3 },
+                    { name: '薄毛衣', temp: 3 },
+                    { name: '保暖内衣', temp: 3 },
+                    { name: '厚毛衣', temp: 4 },
+                    { name: '西装外套', temp: 4 },
+                    { name: '薄外套', temp: 4 },
+                    { name: '风衣/夹克', temp: 5 },
+                    { name: '薄羽绒服', temp: 5 },
+                    { name: '大衣', temp: 6 },
+                    { name: '棉服', temp: 7 },
+                    { name: '厚羽绒服', temp: 9 }
+                ],
+                bottoms: [
+                    { name: '短裤/短裙', temp: 1 },
+                    { name: '薄长裤', temp: 2 },
+                    { name: '连衣裙', temp: 3 },
+                    { name: '牛仔裤', temp: 3 },
+                    { name: '休闲裤', temp: 3 },
+                    { name: '保暖裤', temp: 3 },
+                    { name: '厚长裤', temp: 4 },
+                    { name: '棉裤', temp: 5 },
+                    { name: '羽绒裤', temp: 7 }
+                ]
+            };
+
+            let selectedItems = [];
+            let currentAmbient = null;
+
+            const ambientTempEl = document.getElementById('ambientTemp');
+            const neededTempEl = document.getElementById('neededTemp');
+            const currentTempEl = document.getElementById('currentTemp');
+            const feelingEl = document.getElementById('feeling');
+            const topsContainer = document.getElementById('topsContainer');
+            const bottomsContainer = document.getElementById('bottomsContainer');
+            const topsChartCtx = document.getElementById('topsChart').getContext('2d');
+            const bottomsChartCtx = document.getElementById('bottomsChart').getContext('2d');
+            const resetButton = document.getElementById('resetButton');
+
+            function updateCalculator() {
+                let needed = '--';
+                if (currentAmbient !== null && !isNaN(currentAmbient)) {
+                    needed = (TARGET_TEMP - currentAmbient).toFixed(0);
+                }
+                neededTempEl.textContent = needed;
+
+                let totalClothingTemp = 0;
+                selectedItems.forEach(item => totalClothingTemp += item.temp);
+                currentTempEl.textContent = totalClothingTemp.toFixed(0);
+
+                if (currentAmbient === null || isNaN(currentAmbient)) {
+                    feelingEl.textContent = '请输入气温';
+                    feelingEl.className = 'text-2xl font-bold ml-2 text-gray-500';
+                    return;
+                }
+
+                const apparentTemp = currentAmbient + totalClothingTemp;
+                const diff = apparentTemp - TARGET_TEMP;
+
+                if (diff < -2) {
+                    feelingEl.textContent = '有点冷... 🥶';
+                    feelingEl.className = 'text-2xl font-bold ml-2 feeling-cold';
+                } else if (diff > 2) {
+                    feelingEl.textContent = '有点热... 🥵';
+                    feelingEl.className = 'text-2xl font-bold ml-2 feeling-hot';
+                } else {
+                    feelingEl.textContent = '刚刚好！😊';
+                    feelingEl.className = 'text-2xl font-bold ml-2 feeling-good';
+                }
+            }
+
+            function handleTempInput(e) {
+                currentAmbient = parseFloat(e.target.value);
+                updateCalculator();
+            }
+
+            function handleItemClick(e, item) {
+                const button = e.currentTarget;
+                const itemId = button.id;
+                
+                const existingIndex = selectedItems.findIndex(i => i.id === itemId);
+
+                if (existingIndex > -1) {
+                    selectedItems.splice(existingIndex, 1);
+                    button.classList.remove('selected');
+                } else {
+                    selectedItems.push({ ...item, id: itemId });
+                    button.classList.add('selected');
+                }
+                updateCalculator();
+            }
+            
+            function handleReset() {
+                selectedItems = [];
+                document.querySelectorAll('.clothing-item.selected').forEach(btn => {
+                    btn.classList.remove('selected');
+                });
+                updateCalculator();
+            }
+
+            function populateButtons() {
+                clothingData.tops.forEach((item, index) => {
+                    const btn = document.createElement('button');
+                    btn.id = 'top-' + index;
+                    btn.className = 'clothing-item p-2 rounded-lg font-semibold text-sm md:text-base';
+                    btn.textContent = `${item.name} (${item.temp}°C)`;
+                    btn.addEventListener('click', (e) => handleItemClick(e, item));
+                    topsContainer.appendChild(btn);
+                });
+
+                clothingData.bottoms.forEach((item, index) => {
+                    const btn = document.createElement('button');
+                    btn.id = 'bottom-' + index;
+                    btn.className = 'clothing-item p-2 rounded-lg font-semibold text-sm md:text-base';
+                    btn.textContent = `${item.name} (${item.temp}°C)`;
+                    btn.addEventListener('click', (e) => handleItemClick(e, item));
+                    bottomsContainer.appendChild(btn);
+                });
+            }
+
+            function createChart(ctx, label, data, backgroundColor, borderColor) {
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.map(d => d.name),
+                        datasets: [{
+                            label: label,
+                            data: data.map(d => d.temp),
+                            backgroundColor: backgroundColor,
+                            borderColor: borderColor,
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `${context.label}: ${context.raw}°C`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: '温度值 (°C)',
+                                    color: '#4b5563'
+                                },
+                                ticks: {
+                                    color: '#4b5563'
+                                },
+                                grid: {
+                                    color: '#e5e7eb'
+                                }
+                            },
+                            y: {
+                                ticks: {
+                                    color: '#4b5563',
+                                    autoSkip: false
+                                },
+                                grid: {
+                                    display: false
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            function init() {
+                populateButtons();
+                
+                ambientTempEl.addEventListener('input', handleTempInput);
+                resetButton.addEventListener('click', handleReset);
+
+                createChart(
+                    topsChartCtx, 
+                    '上装温度', 
+                    clothingData.tops, 
+                    'rgba(217, 119, 6, 0.7)', // Amber 600
+                    'rgba(217, 119, 6, 1)'
+                );
+                
+                createChart(
+                    bottomsChartCtx, 
+                    '下装温度', 
+                    clothingData.bottoms, 
+                    'rgba(180, 83, 9, 0.7)', // Amber 700
+                    'rgba(180, 83, 9, 1)'
+                );
+                
+                updateCalculator();
+            }
+
+            init();
+        });
+    </script>
+</body>
+</html>
+
+
