@@ -3,375 +3,790 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>穿衣温度助手</title>
+    <title>26°C 穿衣助手 | 个性化定制版</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌏</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <!-- Chosen Palette: Warm Amber Neutrals -->
-    <!-- Application Structure Plan: 
-        设计一个两栏式SPA。
-        1. 核心工具 - "穿搭计算器": 位于页面顶部，立即可用。用户输入环境温度，应用立即计算出所需的“衣物温度”（目标27°C - 环境温度）。然后，用户可以从分类（上装、下装）的衣物列表中点击选择，实时看到他们所选衣物的总温度，以及一个“体感”反馈（例如：偏冷、刚刚好、偏热）。这种设计将用户的核心需求（“我该穿什么？”）置于首位，提供了即时、实用的价值。
-        2. 参考图表 - "穿衣温度参考表": 位于计算器下方。使用两个水平条形图（一个用于上装，一个用于下装）清晰地展示每件衣物的“温度值”。这满足了用户对“图表”的明确要求，并作为计算器的数据参考，允许用户直观地比较不同衣物的保暖性。
-        这种“工具优先，参考在后”的结构，首先解决了用户的实际问题，然后提供了支持性的数据和上下文，使用户流程既实用又完整。
-    -->
-    <!-- Visualization & Content Choices: 
-        - 报告信息: “穿衣27度”理论，即 环境温度 + 衣物温度 = 27°C。
-        - 目标: 将此理论转化为一个实用的工具。
-        - 呈现方式: 一个交互式计算器模块。
-        - 交互: 用户输入数字（环境温度），点击按钮（选择衣物）。应用通过JS实时更新DOM中的文本（所需温度、已选温度、体感反馈）。
-        - 理由: 这是将一个抽象概念（27度法则）转化为具体、个性化建议的最直接方式。
-        - 库/方法: Vanilla JS。
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        amber: { 50: '#fffbeb', 100: '#fef3c7', 500: '#f59e0b', 600: '#d97706', 700: '#b45309', 800: '#92400e' }
+                    },
+                    fontFamily: {
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    },
+                    animation: {
+                        'fade-out': 'fadeOut 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'bounce-in': 'bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                        'spin-slow': 'spin 3s linear infinite',
+                    },
+                    keyframes: {
+                        fadeOut: {
+                            '0%': { opacity: '1', visibility: 'visible' },
+                            '100%': { opacity: '0', visibility: 'hidden' },
+                        },
+                        bounceIn: {
+                            '0%': { opacity: '0', transform: 'scale(0.95)' },
+                            '100%': { opacity: '1', transform: 'scale(1)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
 
-        - 报告信息: 各种衣物（包括裤子）及其对应的温度值。
-        - 目标: 直观地展示和比较每件衣物的保暖值。
-        - 呈现方式: 两个水平条形图（“上装”和“下装”）。
-        - 交互: 鼠标悬停时显示工具提示（Tooltip），包含衣物名称和准确温度值。
-        - 理由: 水平条形图非常适合比较具有长标签（衣物名称）的分类数据。将其分为两张图表可避免单一图表过于拥挤，提高可读性。
-        - 库/方法: Chart.js (Canvas)。
-    -->
-    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
         body {
-            font-family: 'Inter', 'Helvetica Neue', 'Arial', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-            background-color: #fefcfb; /* Warm Neutral: Amber 50 */
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #fdfbf7 0%, #fff7ed 100%);
+            min-height: 100vh;
         }
-        .chart-container {
-            position: relative;
-            width: 100%;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
-            border-radius: 0.5rem;
-            background-color: #ffffff;
-            padding: 1rem;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        
+        /* Overlays */
+        .modal-backdrop {
+            position: fixed; inset: 0; z-index: 50;
+            background-color: rgba(0,0,0,0.4); backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
         }
-        .chart-container-tops {
-            height: 500px;
-            max-height: 600px;
+        
+        #introOverlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, #fffbeb 0%, #fff7ed 100%);
+            z-index: 9999; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
-        .chart-container-bottoms {
-            height: 350px;
-            max-height: 400px;
+        .intro-icon-bg {
+            position: absolute; width: 200px; height: 200px;
+            background: radial-gradient(circle, rgba(251, 191, 36, 0.2) 0%, rgba(251, 191, 36, 0) 70%);
+            border-radius: 50%; animation: pulse 3s infinite;
         }
-        .clothing-item {
-            transition: all 0.2s ease-in-out;
-            border: 2px solid #fde68a; /* Amber 200 */
-            color: #92400e; /* Amber 800 */
+
+        .az-sidebar {
+            position: absolute; right: 4px; top: 80px; bottom: 20px;
+            display: flex; flex-direction: column; justify-content: center;
+            gap: 2px; z-index: 20;
+            font-size: 10px; color: #9ca3af;
+            background: rgba(255,255,255,0.8);
+            border-radius: 10px; padding: 4px 2px;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.02);
         }
-        .clothing-item:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        .az-link { cursor: pointer; padding: 1px 4px; font-weight: 600; text-align: center; transition: transform 0.1s; }
+        .az-link:hover { color: #d97706; transform: scale(1.4); }
+
+        .chart-container { position: relative; width: 100%; height: 300px; margin: 0 auto; }
+        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background-color: #d1d5db; border-radius: 4px; }
+        
+        /* Clothing Buttons */
+        .clothing-btn { transition: all 0.2s; position: relative; overflow: hidden; }
+        .clothing-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .clothing-btn.selected {
+            background-color: #fff7ed; border-color: #b45309; color: #b45309;
+            box-shadow: 0 0 0 1px #b45309;
         }
-        .clothing-item.selected {
-            background-color: #b45309; /* Amber 700 */
-            color: #ffffff;
-            border-color: #b45309;
+        .clothing-btn.selected::after {
+            content: '✓'; position: absolute; top: 0; right: 0;
+            background-color: #b45309; color: white; font-size: 10px; width: 16px; height: 16px;
+            border-bottom-left-radius: 8px; display: flex; align-items: center; justify-content: center;
         }
-        .feeling-cold { color: #2563eb; } /* Blue 600 */
-        .feeling-good { color: #16a34a; } /* Green 600 */
-        .feeling-hot { color: #dc2626; } /* Red 600 */
+        /* Layer Tag */
+        .layer-tag {
+            position: absolute; bottom: 2px; right: 4px; font-size: 9px; 
+            padding: 1px 3px; border-radius: 4px; font-weight: bold; opacity: 0.7;
+        }
+        .layer-inner { background-color: #fee2e2; color: #991b1b; } /* Red tint */
+        .layer-outer { background-color: #e0f2fe; color: #075985; } /* Blue tint */
+        
+        .modifier-btn.active { background-color: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
+        .modifier-btn[data-effect="warm"].active { background-color: #fff7ed; border-color: #f59e0b; color: #b45309; }
+        .unit-btn.active { background-color: #b45309; color: white; border-color: #b45309; }
+        .meter-gradient { background: linear-gradient(90deg, #3b82f6 0%, #22c55e 50%, #ef4444 100%); }
+        
+        /* Preference Button */
+        .pref-option { cursor: pointer; border: 2px solid #e5e7eb; transition: all 0.2s; }
+        .pref-option:hover { border-color: #fcd34d; }
+        .pref-option.active { border-color: #f59e0b; background-color: #fffbeb; color: #92400e; }
     </style>
 </head>
 <body class="text-gray-800">
 
-    <main class="container mx-auto max-w-4xl p-4 md:p-8 space-y-12">
-        
-        <header class="text-center space-y-2">
-            <h1 class="text-4xl font-bold text-amber-800">穿衣温度助手</h1>
-            <p class="text-lg text-gray-600">
-                科学穿搭，告别臃肿。本工具基于“27°C穿衣法则”：<br class="hidden sm:inline">
-                <span class="font-semibold">环境温度 + 衣物温度 ≈ 27°C</span> 时，体感最为舒适。
-            </p>
+    <!-- 开屏 -->
+    <div id="introOverlay">
+        <div class="intro-icon-bg"></div>
+        <div class="relative z-10 text-center space-y-6 animate-bounce-in">
+            <div class="text-7xl mb-4 drop-shadow-sm">🌏</div>
+            <div class="space-y-3">
+                <h1 id="introTitle" class="text-4xl md:text-5xl font-extrabold text-gray-800 tracking-tight">全球定位中...</h1>
+                <div class="flex items-center justify-center gap-2 text-amber-600 font-medium">
+                    <svg class="animate-spin-slow h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <span id="introSubtitle">正在连接气象卫星数据</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 城市选择模态框 -->
+    <div id="citySearchModal" class="hidden modal-backdrop" onclick="if(event.target === this) toggleCitySearch(false)">
+        <div class="bg-white w-full max-w-md h-[80vh] md:h-[700px] rounded-2xl shadow-2xl overflow-hidden animate-bounce-in border border-gray-100 flex flex-col relative" onclick="event.stopPropagation()">
+            <div class="p-4 border-b border-gray-100 bg-gray-50/80 backdrop-blur-sm flex-shrink-0 z-30">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-bold text-gray-800 text-lg">选择城市 / Select City</h3>
+                    <button onclick="toggleCitySearch(false)" class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-200 text-gray-500 hover:bg-gray-300 transition-colors">&times;</button>
+                </div>
+                <div class="relative">
+                    <input type="text" id="citySearchInput" placeholder="搜索全球城市 (中/英)..." autocomplete="off"
+                           class="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-50 transition-all bg-white">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+                    <div id="searchLoading" class="hidden absolute right-3 top-1/2 -translate-y-1/2">
+                        <svg class="animate-spin h-4 w-4 text-amber-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto custom-scroll relative bg-gray-50" id="cityListContainer">
+                <div id="azSidebar" class="az-sidebar"></div>
+                <div id="browseView" class="pb-10"></div>
+                <div id="searchResultsView" class="hidden p-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 偏好设置模态框 (NEW) -->
+    <div id="settingsModal" class="hidden modal-backdrop" onclick="if(event.target === this) toggleSettings(false)">
+        <div class="bg-white w-full max-w-sm rounded-2xl shadow-xl p-6 animate-bounce-in border border-gray-100 relative">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="font-bold text-gray-800 text-lg flex items-center gap-2">⚙️ 偏好设置</h3>
+                <button onclick="toggleSettings(false)" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+            </div>
+
+            <div class="space-y-6">
+                <!-- 体质选择 -->
+                <div class="space-y-3">
+                    <label class="text-sm font-bold text-gray-500 uppercase tracking-wide">体质敏感度</label>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="pref-option rounded-xl p-3 text-center" data-type="hot" onclick="setPreference('hot')">
+                            <div class="text-2xl mb-1">🔥</div>
+                            <div class="font-bold text-sm">怕热</div>
+                            <div class="text-xs text-gray-400">目标 -2°</div>
+                        </div>
+                        <div class="pref-option rounded-xl p-3 text-center active" data-type="normal" onclick="setPreference('normal')">
+                            <div class="text-2xl mb-1">😐</div>
+                            <div class="font-bold text-sm">正常</div>
+                            <div class="text-xs text-gray-400">标准 26°</div>
+                        </div>
+                        <div class="pref-option rounded-xl p-3 text-center" data-type="cold" onclick="setPreference('cold')">
+                            <div class="text-2xl mb-1">❄️</div>
+                            <div class="font-bold text-sm">怕冷</div>
+                            <div class="text-xs text-gray-400">目标 +2°</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 自定义基准 -->
+                <div class="space-y-3 pt-4 border-t border-gray-100">
+                    <div class="flex justify-between items-center">
+                        <label class="text-sm font-bold text-gray-500 uppercase tracking-wide">自定义目标体感温度</label>
+                        <div class="relative w-24">
+                            <input type="number" id="targetTempInput" value="26" 
+                                   class="w-full pl-3 pr-8 py-2 border-2 border-gray-200 rounded-lg font-bold text-gray-700 focus:outline-none focus:border-amber-400">
+                            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">°C</span>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-400">默认 26°C。如果你觉得还是冷，可以调高此数值。</p>
+                </div>
+
+                <button onclick="toggleSettings(false)" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl transition-colors shadow-sm">
+                    保存设置
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <main class="container mx-auto max-w-5xl px-4 py-6 md:py-10 space-y-8">
+        <header class="space-y-6 border-b border-amber-100 pb-6">
+            <div class="flex flex-col md:flex-row justify-between items-end md:items-center gap-4">
+                <div class="w-full md:w-auto space-y-1">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <div id="greetingDate" class="text-xs font-bold text-amber-600 uppercase tracking-widest bg-amber-50 px-2 py-0.5 rounded">--</div>
+                        <button onclick="toggleCitySearch(true)" id="locationBadge" class="hidden group text-xs bg-white text-gray-600 px-3 py-0.5 rounded-full border border-gray-200 hover:border-amber-400 hover:text-amber-700 flex items-center gap-1 transition-all shadow-sm cursor-pointer">
+                            <span>📍</span> 
+                            <span id="locationName" class="font-bold">未知位置</span>
+                            <span class="text-gray-300 group-hover:text-amber-400 ml-1 text-[10px]">▼</span>
+                        </button>
+                        <!-- 偏好设置按钮 -->
+                        <button onclick="toggleSettings(true)" class="text-xs bg-white text-gray-500 px-2 py-0.5 rounded-full border border-gray-200 hover:border-gray-400 hover:text-gray-700 flex items-center gap-1 transition-all shadow-sm cursor-pointer ml-1">
+                            <span>⚙️</span> <span id="prefBadge">正常</span>
+                        </button>
+                    </div>
+                    <h1 id="greetingTitle" class="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight">你好</h1>
+                    <p class="text-gray-500 text-sm">
+                        目标体感: <span id="targetDisplay" class="font-bold text-amber-600">26°C</span> 
+                        <span class="text-gray-300 mx-1">|</span> 
+                        <span class="font-bold text-gray-700">26°C 法则</span> + 实时气象
+                    </p>
+                </div>
+                <div class="bg-white p-1 rounded-xl border border-amber-200 shadow-sm flex items-center self-start md:self-center">
+                    <button id="btnCelsius" class="unit-btn active px-4 py-2 rounded-lg font-bold text-sm focus:outline-none transition-all">°C</button>
+                    <button id="btnFahrenheit" class="unit-btn px-4 py-2 rounded-lg font-bold text-sm focus:outline-none transition-all">°F</button>
+                </div>
+            </div>
+            <div class="flex justify-center">
+                <div class="bg-white border border-amber-100 shadow-sm px-6 py-3 rounded-2xl flex items-baseline gap-3">
+                    <div id="digitalClock" class="text-4xl md:text-5xl font-mono font-bold text-gray-800 tracking-tight">00:00:00</div>
+                    <div id="ampm" class="text-sm font-bold text-amber-600">--</div>
+                </div>
+            </div>
         </header>
 
-        <!-- Section 1: Outfit Calculator -->
-        <section id="calculator" class="bg-white p-6 rounded-lg shadow-lg space-y-6">
-            <h2 class="text-2xl font-bold text-amber-700 border-b-2 border-amber-200 pb-2">今日穿搭计算器</h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                <!-- Input -->
-                <div class="space-y-4">
-                    <label for="ambientTemp" class="block text-lg font-semibold text-gray-700">请输入今天的气温 (°C):</label>
-                    <input type="number" id="ambientTemp" placeholder="例如: 15" class="w-full p-3 border-2 border-amber-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent">
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div class="lg:col-span-5 space-y-6">
+                <!-- Weather Card -->
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6 relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-amber-500"></div>
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center">
+                            <label class="block text-sm font-bold text-gray-700">实时气象</label>
+                            <div class="flex gap-2">
+                                <button onclick="toggleCitySearch(true)" class="text-xs flex items-center gap-1 text-amber-600 hover:text-amber-800 font-medium transition-colors bg-amber-50 px-2 py-1 rounded hover:bg-amber-100">
+                                    🔍 换城市
+                                </button>
+                                <button id="locateBtn" class="text-xs flex items-center gap-1 text-gray-400 hover:text-gray-600 font-medium transition-colors">
+                                    🔄 刷新
+                                </button>
+                            </div>
+                        </div>
+                        <div class="relative group">
+                            <input type="number" id="ambientTemp" placeholder=" " step="0.1" 
+                                   class="peer w-full px-4 py-4 pl-12 border-2 border-gray-200 rounded-xl text-3xl font-bold text-gray-800 placeholder-gray-300 focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-50 transition-all bg-gray-50 focus:bg-white">
+                            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-2xl group-hover:scale-110 transition-transform">🌡️</span>
+                            <span class="absolute right-6 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xl unit-label pointer-events-none">°C</span>
+                        </div>
+                        <div id="liveWeatherData" class="hidden grid grid-cols-2 gap-2 text-xs text-gray-500 pt-2 px-1 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                            <span class="flex items-center gap-1.5">☁️ <span id="liveCondition" class="font-semibold text-gray-700">--</span></span>
+                            <span class="flex items-center gap-1.5">💧 湿度: <b id="liveHumidity" class="text-gray-700">--</b>%</span>
+                            <span class="flex items-center gap-1.5">🍃 风速: <b id="liveWind" class="text-gray-700">--</b>m/s</span>
+                            <span class="flex items-center gap-1.5">👁️ 体感: <b id="liveApparent" class="text-gray-700">--</b><span class="unit-label">°C</span></span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide">智能体感修正</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="modWind" class="modifier-btn flex items-center justify-center gap-2 p-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all" data-val="-3" data-effect="cold">
+                                <span>🍃</span> 风大 <span class="text-xs bg-blue-100 text-blue-700 px-1.5 rounded font-bold">-3°</span>
+                            </button>
+                            <button id="modHumid" class="modifier-btn flex items-center justify-center gap-2 p-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all" data-val="-2" data-effect="cold">
+                                <span>💧</span> 阴冷 <span class="text-xs bg-blue-100 text-blue-700 px-1.5 rounded font-bold">-2°</span>
+                            </button>
+                            <button id="modSun" class="modifier-btn flex items-center justify-center gap-2 p-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all" data-val="2" data-effect="warm">
+                                <span>☀️</span> 晴朗 <span class="text-xs bg-orange-100 text-orange-700 px-1.5 rounded font-bold">+2°</span>
+                            </button>
+                            <button id="modActive" class="modifier-btn flex items-center justify-center gap-2 p-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all" data-val="3" data-effect="warm">
+                                <span>🏃</span> 运动 <span class="text-xs bg-orange-100 text-orange-700 px-1.5 rounded font-bold">+3°</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center pt-2 border-t border-gray-100">
+                        <span class="text-sm text-gray-500">实际环境计算基准:</span>
+                        <span id="realFeelDisplay" class="text-lg font-bold text-gray-700">--</span>
+                    </div>
+                </div>
+
+                <!-- Dashboard -->
+                <div class="bg-gray-900 rounded-2xl shadow-lg p-6 text-white space-y-6 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-amber-500 opacity-10 rounded-full blur-2xl"></div>
+                    <div class="grid grid-cols-2 gap-4 relative z-10">
+                        <div class="space-y-1">
+                            <div class="text-gray-400 text-xs uppercase tracking-wider font-semibold">仍需补充</div>
+                            <div class="text-3xl font-bold text-amber-400">
+                                <span id="neededTemp">--</span><span class="text-lg ml-1 unit-label">°C</span>
+                            </div>
+                        </div>
+                        <div class="space-y-1 text-right">
+                            <div class="text-gray-400 text-xs uppercase tracking-wider font-semibold">已选衣物</div>
+                            <div class="text-3xl font-bold text-blue-300">
+                                <span id="currentTemp">0</span><span class="text-lg ml-1 unit-label">°C</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="space-y-2 relative z-10">
+                        <div class="h-3 bg-gray-700 rounded-full overflow-hidden relative">
+                            <div class="absolute inset-0 meter-gradient opacity-80"></div>
+                            <div id="meterMarker" class="absolute top-0 w-1 h-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] transition-all duration-500 ease-out" style="left: 50%; transform: translateX(-50%);"></div>
+                        </div>
+                        <div id="feelingText" class="text-center font-bold text-lg pt-1 min-h-[2rem]"></div>
+                    </div>
                 </div>
                 
-                <!-- Results -->
-                <div class="bg-amber-50 p-4 rounded-lg space-y-3 text-center md:text-left">
-                    <div class="text-lg">
-                        <span class="font-semibold text-gray-700">你需要衣物提供:</span>
-                        <span id="neededTemp" class="text-2xl font-bold text-amber-800 ml-2">--</span>
-                        <span class="font-semibold text-amber-800">°C</span>
-                    </div>
-                    <div class="text-lg">
-                        <span class="font-semibold text-gray-700">你已选择衣物:</span>
-                        <span id="currentTemp" class="text-2xl font-bold text-blue-700 ml-2">0</span>
-                        <span class="font-semibold text-blue-700">°C</span>
-                    </div>
-                    <div class="text-lg">
-                        <span class="font-semibold text-gray-700">当前体感:</span>
-                        <span id="feeling" class="text-2xl font-bold ml-2">--</span>
-                    </div>
+                <button id="resetButton" class="w-full py-3 px-4 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 font-semibold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2">
+                    <span>↺</span> 重置所有
+                </button>
+            </div>
+
+            <div class="lg:col-span-7 space-y-6">
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 md:p-6">
+                    <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wide mb-4">上装 (Tops)</h3>
+                    <div id="topsContainer" class="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2.5 max-h-[360px] overflow-y-auto custom-scroll p-1"></div>
                 </div>
-            </div>
-
-            <!-- Clothing Selection -->
-            <div class="space-y-4">
-                <h3 class="text-xl font-semibold text-gray-700">选择上装:</h3>
-                <div id="topsContainer" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                    <!-- Tops will be populated by JS -->
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 md:p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wide">下装 (Bottoms)</h3>
+                        <div class="text-[10px] text-gray-400 flex gap-2">
+                            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-100 border border-red-200"></span>内搭层</span>
+                            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-100 border border-blue-200"></span>外穿层</span>
+                        </div>
+                    </div>
+                    <div id="bottomsContainer" class="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2.5 max-h-[280px] overflow-y-auto custom-scroll p-1"></div>
                 </div>
-            </div>
-
-            <div class="space-y-4">
-                <h3 class="text-xl font-semibold text-gray-700">选择下装:</h3>
-                <div id="bottomsContainer" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                    <!-- Bottoms will be populated by JS -->
-                </div>
-            </div>
-             <button id="resetButton" class="w-full md:w-auto px-6 py-2 bg-amber-600 text-white font-semibold rounded-lg shadow hover:bg-amber-700 transition-colors">
-                重置选择
-            </button>
-        </section>
-
-        <!-- Section 2: Reference Charts -->
-        <section id="reference" class="space-y-8">
-            <h2 class="text-2xl font-bold text-amber-700 text-center border-b-2 border-amber-200 pb-2">穿衣温度参考表</h2>
-            
-            <p class="text-center text-gray-600">
-                这里是本应用所使用的衣物温度参考值。你可以通过上方的计算器来组合它们，以达到最佳的体感温度。
-            </p>
-
-            <div class="chart-container chart-container-tops">
-                <canvas id="topsChart"></canvas>
-            </div>
-            
-            <div class="chart-container chart-container-bottoms">
-                <canvas id="bottomsChart"></canvas>
             </div>
         </section>
 
-        <footer class="text-center text-gray-500 text-sm pt-8 border-t border-amber-200">
-            <p>&copy; 2025 穿衣温度助手. 灵感来源于 "27°C 穿衣法则".</p>
+        <section class="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 md:p-8 mt-8">
+            <div class="flex flex-col md:flex-row justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-gray-800">参考数据</h2>
+                <span class="text-sm text-gray-500">源：26°C 黄金法则</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="chart-container"><canvas id="topsChart"></canvas></div>
+                <div class="chart-container"><canvas id="bottomsChart"></canvas></div>
+            </div>
+        </section>
+
+        <footer class="text-center text-gray-400 text-xs pb-8 pt-4">
+            <p>© 2025 智能穿衣助手 · Global Weather by Open-Meteo</p>
         </footer>
     </main>
 
     <script>
+        // --- Global Data ---
+        const PRESET_CITIES = {
+            "A": [
+                { country: "Australia 澳大利亚", flag: "🇦🇺", cities: [
+                    {n: "Canberra 堪培拉", lat: -35.28, lon: 149.13}, {n: "Sydney 悉尼", lat: -33.86, lon: 151.20}, {n: "Melbourne 墨尔本", lat: -37.81, lon: 144.96}
+                ]}
+            ],
+            "C": [
+                { country: "China 中国", flag: "🇨🇳", cities: [
+                    {n: "Beijing 北京", lat: 39.90, lon: 116.40}, {n: "Shanghai 上海", lat: 31.23, lon: 121.47}, 
+                    {n: "Guangzhou 广州", lat: 23.12, lon: 113.26}, {n: "Shenzhen 深圳", lat: 22.54, lon: 114.05},
+                    {n: "Chengdu 成都", lat: 30.57, lon: 104.06}, {n: "Xi'an 西安", lat: 34.34, lon: 108.94},
+                    {n: "Hong Kong 香港", lat: 22.32, lon: 114.17}
+                ]},
+                { country: "Canada 加拿大", flag: "🇨🇦", cities: [
+                    {n: "Ottawa 渥太华", lat: 45.42, lon: -75.69}, {n: "Toronto 多伦多", lat: 43.65, lon: -79.38}, {n: "Vancouver 温哥华", lat: 49.28, lon: -123.12}
+                ]}
+            ],
+            "F": [
+                { country: "France 法国", flag: "🇫🇷", cities: [
+                    {n: "Paris 巴黎", lat: 48.85, lon: 2.35}, {n: "Marseille 马赛", lat: 43.29, lon: 5.36}
+                ]}
+            ],
+            "G": [
+                 { country: "Germany 德国", flag: "🇩🇪", cities: [
+                    {n: "Berlin 柏林", lat: 52.52, lon: 13.40}, {n: "Munich 慕尼黑", lat: 48.13, lon: 11.58}
+                ]}
+            ],
+            "J": [
+                { country: "Japan 日本", flag: "🇯🇵", cities: [
+                    {n: "Tokyo 东京", lat: 35.68, lon: 139.65}, {n: "Osaka 大阪", lat: 34.69, lon: 135.50}, {n: "Kyoto 京都", lat: 35.01, lon: 135.76}
+                ]}
+            ],
+            "K": [
+                { country: "Korea 韩国", flag: "🇰🇷", cities: [
+                    {n: "Seoul 首尔", lat: 37.56, lon: 126.97}, {n: "Busan 釜山", lat: 35.17, lon: 129.07}
+                ]}
+            ],
+            "R": [
+                { country: "Russia 俄罗斯", flag: "🇷🇺", cities: [
+                    {n: "Moscow 莫斯科", lat: 55.75, lon: 37.61}, {n: "St.Petersburg 圣彼得堡", lat: 59.93, lon: 30.33}
+                ]}
+            ],
+            "S": [
+                 { country: "Singapore 新加坡", flag: "🇸🇬", cities: [
+                    {n: "Singapore 新加坡", lat: 1.35, lon: 103.81}
+                ]}
+            ],
+            "U": [
+                { country: "UK 英国", flag: "🇬🇧", cities: [
+                    {n: "London 伦敦", lat: 51.50, lon: -0.12}, {n: "Edinburgh 爱丁堡", lat: 55.95, lon: -3.18}
+                ]},
+                { country: "USA 美国", flag: "🇺🇸", cities: [
+                    {n: "New York 纽约", lat: 40.71, lon: -74.00}, {n: "Los Angeles 洛杉矶", lat: 34.05, lon: -118.24}, 
+                    {n: "San Francisco 旧金山", lat: 37.77, lon: -122.41}, {n: "Chicago 芝加哥", lat: 41.87, lon: -87.62}
+                ]}
+            ]
+        };
+
+        // --- 核心逻辑 ---
+        let userBaseTarget = 26; 
+        let userOffset = 0;
+        let selectedItems = [];
+        let isCelsius = true;
+        let lastWeatherData = null;
+
+        const clothingData = {
+            tops: [
+                { name: '背心/吊带', temp: 1, icon: '🎽' }, { name: '短袖T恤', temp: 1, icon: '👕' },
+                { name: '薄款衬衫', temp: 2, icon: '👔' }, { name: '长袖T恤', temp: 2, icon: '👕' },
+                { name: '针织马甲', temp: 2, icon: '🧶' }, { name: '卫衣/帽衫', temp: 3, icon: '🧥' },
+                { name: '薄毛衣', temp: 3, icon: '🧶' }, { name: '保暖内衣', temp: 3, icon: '🔥' },
+                { name: '厚毛衣', temp: 4, icon: '🧶' }, { name: '西装外套', temp: 4, icon: '💼' },
+                { name: '防风外套', temp: 5, icon: '🧥' }, { name: '薄羽绒服', temp: 6, icon: '🌬️' },
+                { name: '呢大衣', temp: 7, icon: '🧥' }, { name: '厚棉服', temp: 8, icon: '🏔️' },
+                { name: '厚羽绒服', temp: 9, icon: '⛄' }
+            ],
+            bottoms: [
+                { name: '短裤', temp: 1, icon: '🩳', layer: 'outer' }, 
+                { name: '薄长裤', temp: 2, icon: '👖', layer: 'outer' },
+                { name: '牛仔裤', temp: 3, icon: '👖', layer: 'outer' }, 
+                { name: '休闲裤', temp: 3, icon: '👖', layer: 'outer' },
+                { name: '保暖/秋裤', temp: 3, icon: '🔥', layer: 'inner' }, // 内搭
+                { name: '加绒卫裤', temp: 4, icon: '👖', layer: 'outer' },
+                { name: '棉裤', temp: 5, icon: '❄️', layer: 'outer' }, 
+                { name: '羽绒裤', temp: 7, icon: '⛄', layer: 'outer' }
+            ]
+        };
+
+        const wmoCodes = {
+            0: "☀️ 晴朗", 1: "🌤️ 多云", 2: "⛅ 阴", 3: "☁️ 阴天",
+            45: "🌫️ 雾", 48: "🌫️ 雾凇", 51: "🌧️ 毛毛雨", 53: "🌧️ 小雨", 55: "🌧️ 中雨",
+            61: "🌧️ 小雨", 63: "🌧️ 中雨", 65: "🌧️ 大雨", 71: "🌨️ 小雪", 73: "🌨️ 中雪", 75: "🌨️ 大雪",
+            95: "⛈️ 雷雨", 96: "⛈️ 雷暴"
+        };
+
+        // --- UI Controls ---
+        function toggleCitySearch(show) {
+            const modal = document.getElementById('citySearchModal');
+            if(show) {
+                modal.classList.remove('hidden');
+                document.getElementById('citySearchInput').focus();
+                document.getElementById('browseView').classList.remove('hidden');
+                document.getElementById('searchResultsView').classList.add('hidden');
+                document.getElementById('azSidebar').classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function toggleSettings(show) {
+            const modal = document.getElementById('settingsModal');
+            if(show) modal.classList.remove('hidden');
+            else modal.classList.add('hidden');
+        }
+
+        function setPreference(type) {
+            document.querySelectorAll('.pref-option').forEach(el => el.classList.remove('active'));
+            document.querySelector(`.pref-option[data-type="${type}"]`).classList.add('active');
+            
+            if (type === 'hot') { userOffset = -2; document.getElementById('prefBadge').textContent = "怕热"; }
+            else if (type === 'cold') { userOffset = 2; document.getElementById('prefBadge').textContent = "怕冷"; }
+            else { userOffset = 0; document.getElementById('prefBadge').textContent = "正常"; }
+            
+            updateCalculator();
+        }
+
+        // Main Logic
         document.addEventListener('DOMContentLoaded', function() {
             
-            const TARGET_TEMP = 27;
-
-            const clothingData = {
-                tops: [
-                    { name: '背心/吊带', temp: 1 },
-                    { name: '短袖T恤', temp: 1 },
-                    { name: '薄款衬衫', temp: 2 },
-                    { name: '薄款长袖', temp: 2 },
-                    { name: '卫衣', temp: 3 },
-                    { name: '薄毛衣', temp: 3 },
-                    { name: '保暖内衣', temp: 3 },
-                    { name: '厚毛衣', temp: 4 },
-                    { name: '西装外套', temp: 4 },
-                    { name: '薄外套', temp: 4 },
-                    { name: '风衣/夹克', temp: 5 },
-                    { name: '薄羽绒服', temp: 5 },
-                    { name: '大衣', temp: 6 },
-                    { name: '棉服', temp: 7 },
-                    { name: '厚羽绒服', temp: 9 }
-                ],
-                bottoms: [
-                    { name: '短裤/短裙', temp: 1 },
-                    { name: '薄长裤', temp: 2 },
-                    { name: '连衣裙', temp: 3 },
-                    { name: '牛仔裤', temp: 3 },
-                    { name: '休闲裤', temp: 3 },
-                    { name: '保暖裤', temp: 3 },
-                    { name: '厚长裤', temp: 4 },
-                    { name: '棉裤', temp: 5 },
-                    { name: '羽绒裤', temp: 7 }
-                ]
-            };
-
-            let selectedItems = [];
-            let currentAmbient = null;
-
-            const ambientTempEl = document.getElementById('ambientTemp');
-            const neededTempEl = document.getElementById('neededTemp');
-            const currentTempEl = document.getElementById('currentTemp');
-            const feelingEl = document.getElementById('feeling');
-            const topsContainer = document.getElementById('topsContainer');
-            const bottomsContainer = document.getElementById('bottomsContainer');
-            const topsChartCtx = document.getElementById('topsChart').getContext('2d');
-            const bottomsChartCtx = document.getElementById('bottomsChart').getContext('2d');
-            const resetButton = document.getElementById('resetButton');
-
-            function updateCalculator() {
-                let needed = '--';
-                if (currentAmbient !== null && !isNaN(currentAmbient)) {
-                    needed = (TARGET_TEMP - currentAmbient).toFixed(0);
-                }
-                neededTempEl.textContent = needed;
-
-                let totalClothingTemp = 0;
-                selectedItems.forEach(item => totalClothingTemp += item.temp);
-                currentTempEl.textContent = totalClothingTemp.toFixed(0);
-
-                if (currentAmbient === null || isNaN(currentAmbient)) {
-                    feelingEl.textContent = '请输入气温';
-                    feelingEl.className = 'text-2xl font-bold ml-2 text-gray-500';
-                    return;
-                }
-
-                const apparentTemp = currentAmbient + totalClothingTemp;
-                const diff = apparentTemp - TARGET_TEMP;
-
-                if (diff < -2) {
-                    feelingEl.textContent = '有点冷... 🥶';
-                    feelingEl.className = 'text-2xl font-bold ml-2 feeling-cold';
-                } else if (diff > 2) {
-                    feelingEl.textContent = '有点热... 🥵';
-                    feelingEl.className = 'text-2xl font-bold ml-2 feeling-hot';
-                } else {
-                    feelingEl.textContent = '刚刚好！😊';
-                    feelingEl.className = 'text-2xl font-bold ml-2 feeling-good';
-                }
-            }
-
-            function handleTempInput(e) {
-                currentAmbient = parseFloat(e.target.value);
+            // Settings Input Listener
+            document.getElementById('targetTempInput').addEventListener('change', (e) => {
+                userBaseTarget = parseFloat(e.target.value) || 26;
                 updateCalculator();
+            });
+
+            // ... Init existing logic ...
+            initBrowseView();
+            startClock();
+
+            // DOM Elements
+            const els = {
+                ambient: document.getElementById('ambientTemp'),
+                needed: document.getElementById('neededTemp'),
+                current: document.getElementById('currentTemp'),
+                feelingText: document.getElementById('feelingText'),
+                meter: document.getElementById('meterMarker'),
+                tops: document.getElementById('topsContainer'),
+                bottoms: document.getElementById('bottomsContainer'),
+                targetDisplay: document.getElementById('targetDisplay')
+            };
+            
+            // --- Update Calculator with Preferences & Layers ---
+            window.updateCalculator = function() {
+                const inputVal = parseFloat(els.ambient.value);
+                // Always calc in Celsius base
+                const rawBase = isCelsius ? inputVal : (inputVal - 32) / 1.8;
+                
+                let modSum = 0;
+                document.querySelectorAll('.modifier-btn.active').forEach(btn => modSum += parseFloat(btn.dataset.val));
+
+                // Determine Final Target
+                const finalTarget = userBaseTarget + userOffset;
+                els.targetDisplay.textContent = `${finalTarget}°C`;
+
+                if (!isNaN(rawBase)) {
+                    // Effective Ambient Temp
+                    const effBase = rawBase + modSum;
+                    document.getElementById('realFeelDisplay').innerHTML = `${formatNum(toDisplayTemp(effBase))}<span class="text-xs">${isCelsius?'°C':'°F'}</span>${modSum!==0?` (修正${modSum>0?'+':''}${modSum}°)`:''}`;
+                    
+                    // Logic: Need = (Target - EffectiveAmbient) - Clothing
+                    const initialNeed = finalTarget - effBase;
+                    const totalClothing = selectedItems.reduce((s,i)=>s+i.temp, 0);
+                    const remainingNeed = initialNeed - totalClothing;
+                    
+                    const dispRemaining = toDisplayDelta(remainingNeed);
+                    els.needed.textContent = formatNum(dispRemaining);
+                    
+                    // Color feedback for "Remaining"
+                    if (remainingNeed > 1) els.needed.className = "text-amber-500"; // Need more
+                    else if (remainingNeed < -1) els.needed.className = "text-red-400"; // Too much
+                    else els.needed.className = "text-green-500"; // Perfect
+                    
+                    els.current.textContent = formatNum(toDisplayDelta(totalClothing));
+                    updateMeter(effBase, totalClothing, finalTarget);
+                } else {
+                    els.needed.textContent = "--"; 
+                    updateMeter(NaN, 0, finalTarget);
+                }
             }
 
-            function handleItemClick(e, item) {
-                const button = e.currentTarget;
-                const itemId = button.id;
-                
-                const existingIndex = selectedItems.findIndex(i => i.id === itemId);
+            function updateMeter(amb, cloth, target) {
+                if(isNaN(amb)) { els.meter.style.left='50%'; els.feelingText.innerHTML='<span class="text-gray-400 text-sm">...</span>'; return; }
+                const diff = (amb + cloth) - target;
+                let p = 50 + (diff * 5); p = Math.max(5, Math.min(95, p));
+                els.meter.style.left = `${p}%`;
+                if(diff<-3) els.feelingText.innerHTML='<span class="text-blue-400">🥶 寒冷</span>';
+                else if(diff>=-3 && diff<-1) els.feelingText.innerHTML='<span class="text-blue-300">🍃 稍凉</span>';
+                else if(diff>=-1 && diff<=1) els.feelingText.innerHTML='<span class="text-green-500">✨ 舒适</span>';
+                else if(diff>1 && diff<=3) els.feelingText.innerHTML='<span class="text-orange-400">☀️ 偏热</span>';
+                else els.feelingText.innerHTML='<span class="text-red-500">🥵 炎热</span>';
+            }
 
-                if (existingIndex > -1) {
-                    selectedItems.splice(existingIndex, 1);
-                    button.classList.remove('selected');
-                } else {
-                    selectedItems.push({ ...item, id: itemId });
-                    button.classList.add('selected');
+            // --- Render Buttons with Layer Logic ---
+            function renderBtns() {
+                // Tops (Standard Multi-select)
+                const makeTop = (item, idx) => {
+                    const btn = document.createElement('button');
+                    const uid = `top-${idx}`;
+                    const sel = selectedItems.some(i=>i._uid===uid);
+                    btn.className = `clothing-btn w-full text-left px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-medium flex flex-col items-center justify-center gap-1 md:flex-row md:justify-between ${sel?'selected':''}`;
+                    btn.innerHTML = `<span class="text-lg">${item.icon}</span><span class="flex-1 text-center md:text-left text-xs md:text-sm truncate w-full">${item.name}</span><span class="font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded text-xs whitespace-nowrap">${formatNum(toDisplayDelta(item.temp))}°</span>`;
+                    btn.onclick = () => {
+                        const exist = selectedItems.findIndex(i=>i._uid===uid);
+                        if(exist>-1) { selectedItems.splice(exist,1); btn.classList.remove('selected'); }
+                        else { selectedItems.push({...item, _uid:uid, type:'top'}); btn.classList.add('selected'); }
+                        updateCalculator();
+                    };
+                    return btn;
+                };
+
+                // Bottoms (Layer Logic: 1 Inner + 1 Outer)
+                const makeBottom = (item, idx) => {
+                    const btn = document.createElement('button');
+                    const uid = `bottom-${idx}`;
+                    const sel = selectedItems.some(i=>i._uid===uid);
+                    
+                    // Visual Layer Tag
+                    const layerClass = item.layer === 'inner' ? 'layer-inner' : 'layer-outer';
+                    const layerText = item.layer === 'inner' ? '内' : '外';
+                    
+                    btn.className = `clothing-btn w-full text-left px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-medium flex flex-col items-center justify-center gap-1 md:flex-row md:justify-between ${sel?'selected':''}`;
+                    btn.innerHTML = `<span class="text-lg">${item.icon}</span><span class="flex-1 text-center md:text-left text-xs md:text-sm truncate w-full">${item.name}</span><span class="font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded text-xs whitespace-nowrap">${formatNum(toDisplayDelta(item.temp))}°</span><span class="layer-tag ${layerClass}">${layerText}</span>`;
+                    
+                    btn.onclick = () => {
+                        const existIdx = selectedItems.findIndex(i=>i._uid===uid);
+                        
+                        if (existIdx > -1) {
+                            // Deselect self
+                            selectedItems.splice(existIdx, 1);
+                            btn.classList.remove('selected');
+                        } else {
+                            // Logic: If selecting Inner/Outer, remove other existing Inner/Outer first
+                            const conflictIdx = selectedItems.findIndex(i => i.type === 'bottom' && i.layer === item.layer);
+                            if (conflictIdx > -1) {
+                                // Remove conflict visually and from array
+                                const conflictUid = selectedItems[conflictIdx]._uid;
+                                // Find DOM element? We rebuild lists or just update calculator. 
+                                // Easier to rebuild renders or manually toggle class. 
+                                // Let's rely on re-rendering or manual class update. 
+                                // Simple way: toggle class on ALL bottoms then add select.
+                                // Better: just rebuild logic.
+                                selectedItems.splice(conflictIdx, 1); 
+                                // Note: This is data logic. We need to update UI classes. 
+                                // For simplicity, we re-render or iterate buttons.
+                            }
+                            selectedItems.push({...item, _uid:uid, type:'bottom'});
+                        }
+                        // Re-render all bottoms to update selection states correctly
+                        renderBottoms();
+                        updateCalculator();
+                    };
+                    return btn;
+                };
+                
+                els.tops.innerHTML=''; clothingData.tops.forEach((item,i)=>els.tops.appendChild(makeTop(item,i)));
+                renderBottoms();
+
+                function renderBottoms() {
+                    els.bottoms.innerHTML='';
+                    clothingData.bottoms.forEach((item,i)=>els.bottoms.appendChild(makeBottom(item,i)));
                 }
+            }
+            
+            // Expose renderBtns to be called by refreshUI
+            window.renderBtns = renderBtns;
+
+            // ... (Remaining helper functions: startClock, toDisplayTemp, charts, etc. kept from previous) ...
+            function startClock() {
+                const clockEl = document.getElementById('digitalClock');
+                const ampmEl = document.getElementById('ampm');
+                setInterval(() => {
+                    const now = new Date();
+                    const hours = now.getHours();
+                    const min = String(now.getMinutes()).padStart(2,'0');
+                    const sec = String(now.getSeconds()).padStart(2,'0');
+                    clockEl.textContent = `${String(hours).padStart(2,'0')}:${min}:${sec}`;
+                    ampmEl.textContent = hours < 12 ? 'AM' : 'PM';
+                }, 1000);
+            }
+
+            // Basic Helpers
+            window.toDisplayTemp = function(c) { return isCelsius ? c : (c * 1.8 + 32); };
+            window.toDisplayDelta = function(c) { return isCelsius ? c : (c * 1.8); };
+            window.formatNum = function(n) { return isCelsius ? Math.round(n) : n.toFixed(1); };
+            
+            // Init other parts
+            renderBtns();
+            
+            // Event Listeners (Shortened for brevity)
+            document.getElementById('btnCelsius').onclick=()=>{if(!isCelsius){isCelsius=true;refreshUI();}};
+            document.getElementById('btnFahrenheit').onclick=()=>{if(isCelsius){isCelsius=false;refreshUI();}};
+            els.ambient.oninput=updateCalculator;
+            document.querySelectorAll('.modifier-btn').forEach(b=>b.onclick=()=>{b.classList.toggle('active');updateCalculator();});
+            document.getElementById('resetButton').onclick=()=>{selectedItems=[]; els.ambient.value=''; document.querySelectorAll('.modifier-btn').forEach(b=>b.classList.remove('active')); refreshUI();};
+            
+            function refreshUI() {
+                document.getElementById('btnCelsius').className = `unit-btn px-4 py-2 rounded-lg font-bold text-sm focus:outline-none transition-all ${isCelsius?'active':''}`;
+                document.getElementById('btnFahrenheit').className = `unit-btn px-4 py-2 rounded-lg font-bold text-sm focus:outline-none transition-all ${!isCelsius?'active':''}`;
+                document.querySelectorAll('.unit-label').forEach(l => l.textContent = isCelsius ? '°C' : '°F');
+                
+                const curVal = parseFloat(els.ambient.value);
+                if(!isNaN(curVal)) els.ambient.value = isCelsius ? ((curVal-32)/1.8).toFixed(1) : (curVal*1.8+32).toFixed(1);
+                
+                renderBtns();
                 updateCalculator();
             }
             
-            function handleReset() {
-                selectedItems = [];
-                document.querySelectorAll('.clothing-item.selected').forEach(btn => {
-                    btn.classList.remove('selected');
-                });
-                updateCalculator();
-            }
+            // Charts Init
+            const ctx1=document.getElementById('topsChart').getContext('2d');
+            const ctx2=document.getElementById('bottomsChart').getContext('2d');
+            new Chart(ctx1,{type:'bar',data:{labels:clothingData.tops.map(i=>`${i.icon} ${i.name}`),datasets:[{data:clothingData.tops.map(i=>i.temp),backgroundColor:'rgba(217,119,6,0.6)',borderRadius:4}]},options:{indexAxis:'y',responsive:true,plugins:{legend:false},scales:{x:{grid:{color:'#f3f4f6'}},y:{grid:{display:false}}}}});
+            new Chart(ctx2,{type:'bar',data:{labels:clothingData.bottoms.map(i=>`${i.icon} ${i.name}`),datasets:[{data:clothingData.bottoms.map(i=>i.temp),backgroundColor:'rgba(75,85,99,0.6)',borderRadius:4}]},options:{indexAxis:'y',responsive:true,plugins:{legend:false},scales:{x:{grid:{color:'#f3f4f6'}},y:{grid:{display:false}}}}});
+            
+            // Greeting
+            const now = new Date();
+            document.getElementById('greetingDate').textContent = now.toLocaleDateString('zh-CN',{weekday:'long',month:'long',day:'numeric'});
 
-            function populateButtons() {
-                clothingData.tops.forEach((item, index) => {
-                    const btn = document.createElement('button');
-                    btn.id = 'top-' + index;
-                    btn.className = 'clothing-item p-2 rounded-lg font-semibold text-sm md:text-base';
-                    btn.textContent = `${item.name} (${item.temp}°C)`;
-                    btn.addEventListener('click', (e) => handleItemClick(e, item));
-                    topsContainer.appendChild(btn);
-                });
-
-                clothingData.bottoms.forEach((item, index) => {
-                    const btn = document.createElement('button');
-                    btn.id = 'bottom-' + index;
-                    btn.className = 'clothing-item p-2 rounded-lg font-semibold text-sm md:text-base';
-                    btn.textContent = `${item.name} (${item.temp}°C)`;
-                    btn.addEventListener('click', (e) => handleItemClick(e, item));
-                    bottomsContainer.appendChild(btn);
-                });
-            }
-
-            function createChart(ctx, label, data, backgroundColor, borderColor) {
-                new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: data.map(d => d.name),
-                        datasets: [{
-                            label: label,
-                            data: data.map(d => d.temp),
-                            backgroundColor: backgroundColor,
-                            borderColor: borderColor,
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        indexAxis: 'y',
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: false
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return `${context.label}: ${context.raw}°C`;
-                                    }
-                                }
-                            }
-                        },
-                        scales: {
-                            x: {
-                                title: {
-                                    display: true,
-                                    text: '温度值 (°C)',
-                                    color: '#4b5563'
-                                },
-                                ticks: {
-                                    color: '#4b5563'
-                                },
-                                grid: {
-                                    color: '#e5e7eb'
-                                }
-                            },
-                            y: {
-                                ticks: {
-                                    color: '#4b5563',
-                                    autoSkip: false
-                                },
-                                grid: {
-                                    display: false
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-
-            function init() {
-                populateButtons();
-                
-                ambientTempEl.addEventListener('input', handleTempInput);
-                resetButton.addEventListener('click', handleReset);
-
-                createChart(
-                    topsChartCtx, 
-                    '上装温度', 
-                    clothingData.tops, 
-                    'rgba(217, 119, 6, 0.7)', // Amber 600
-                    'rgba(217, 119, 6, 1)'
-                );
-                
-                createChart(
-                    bottomsChartCtx, 
-                    '下装温度', 
-                    clothingData.bottoms, 
-                    'rgba(180, 83, 9, 0.7)', // Amber 700
-                    'rgba(180, 83, 9, 1)'
-                );
-                
-                updateCalculator();
-            }
-
-            init();
+            // Initial update
+            updateCalculator();
+            
+            // Re-attach search logic and auto-locate (Assuming existing functions from prev block)
+            // For brevity, relying on the HTML onClick attributes for modal toggling
+            
+            // Intro Animation
+            setTimeout(() => {
+                 const overlay = document.getElementById('introOverlay');
+                 overlay.classList.add('animate-fade-out');
+                 setTimeout(() => overlay.classList.add('hidden'), 800);
+            }, 1500);
         });
+        
+        // Search Logic (Minified for context)
+        const elsSearch = { input: document.getElementById('citySearchInput'), results: document.getElementById('searchResultsView'), browse: document.getElementById('browseView'), loading: document.getElementById('searchLoading'), sidebar: document.getElementById('azSidebar') };
+        function initBrowseView() { /* Same as before */ 
+             const az = document.getElementById('azSidebar'); az.innerHTML=''; document.getElementById('browseView').innerHTML='';
+             Object.keys(PRESET_CITIES).sort().forEach(l => {
+                 const d = document.createElement('div'); d.className='az-link'; d.textContent=l; d.onclick=e=>{e.stopPropagation();document.getElementById(`section-${l}`).scrollIntoView({behavior:'smooth'})}; az.appendChild(d);
+                 const s = document.createElement('div'); s.id=`section-${l}`; s.className='px-4 pt-4';
+                 s.innerHTML=`<h4 class="text-xs font-bold text-amber-500 mb-2 border-b pb-1 sticky top-0 bg-gray-50">${l}</h4>`;
+                 PRESET_CITIES[l].forEach(c => {
+                     const g = document.createElement('div'); g.className='grid grid-cols-2 md:grid-cols-3 gap-2 pl-2 mt-2';
+                     c.cities.forEach(city => {
+                         const b = document.createElement('button'); b.className='text-left text-sm bg-white border border-gray-100 rounded-lg px-3 py-2 hover:bg-amber-50 text-gray-600 truncate'; b.textContent=city.n;
+                         b.onclick=e=>{e.stopPropagation(); toggleCitySearch(false); appFetchWeather(city.lat, city.lon, city.n);};
+                         g.appendChild(b);
+                     });
+                     const w = document.createElement('div'); w.className='mb-4'; w.innerHTML=`<div class="flex items-center gap-2"><span class="text-xl">${c.flag}</span><span class="font-bold text-gray-700 text-sm">${c.country}</span></div>`;
+                     w.appendChild(g); s.appendChild(w);
+                 });
+                 document.getElementById('browseView').appendChild(s);
+             });
+        }
+        
+        // Attach search listener
+        document.getElementById('citySearchInput').addEventListener('input', (e) => {
+            const q = e.target.value.trim();
+            if(!q) { elsSearch.browse.classList.remove('hidden'); elsSearch.results.classList.add('hidden'); elsSearch.sidebar.classList.remove('hidden'); return; }
+            elsSearch.browse.classList.add('hidden'); elsSearch.results.classList.remove('hidden'); elsSearch.sidebar.classList.add('hidden'); elsSearch.loading.classList.remove('hidden');
+            
+            // Debounce Logic inside or separate
+            clearTimeout(window.searchTimeout);
+            window.searchTimeout = setTimeout(async () => {
+                try {
+                    const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=zh&format=json`);
+                    const data = await res.json();
+                    elsSearch.loading.classList.add('hidden');
+                    if(!data.results || !data.results.length) { elsSearch.results.innerHTML='<div class="text-center text-gray-400 py-4">无结果</div>'; return; }
+                    
+                    const top = data.results[0]; // Only first
+                    const region = [top.admin1, top.country].filter(Boolean).join(', ');
+                    elsSearch.results.innerHTML = `
+                        <div onclick="toggleCitySearch(false); appFetchWeather(${top.latitude},${top.longitude},'${top.name}')" class="bg-white border-2 border-amber-100 rounded-xl p-4 flex justify-between items-center cursor-pointer hover:border-amber-400 hover:shadow-md transition-all">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center text-2xl">🌍</div>
+                                <div><div class="font-bold text-gray-800 text-lg">${top.name}</div><div class="text-sm text-gray-500">${region}</div></div>
+                            </div>
+                            <span class="text-amber-600 font-bold text-sm bg-amber-50 px-3 py-1 rounded-full">选择</span>
+                        </div>
+                        <div class="text-center text-xs text-gray-400 mt-4">已展示最佳结果</div>`;
+                } catch(e) { elsSearch.loading.classList.add('hidden'); }
+            }, 300);
+        });
+        
+        // Weather Fetcher
+        window.appFetchWeather = async function(lat, lon, name) {
+            try {
+                document.getElementById('locationName').textContent = name;
+                document.getElementById('locationBadge').classList.remove('hidden');
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,cloud_cover,weathercode&wind_speed_unit=ms&timezone=auto`;
+                const res = await fetch(url);
+                const d = await res.json();
+                if(d.current) {
+                    lastWeatherData = d.current;
+                    const t = isCelsius ? d.current.temperature_2m : (d.current.temperature_2m * 1.8 + 32);
+                    document.getElementById('ambientTemp').value = Math.round(t);
+                    document.getElementById('liveWeatherData').classList.remove('hidden');
+                    document.getElementById('liveHumidity').textContent = d.current.relative_humidity_2m;
+                    document.getElementById('liveWind').textContent = d.current.wind_speed_10m;
+                    document.getElementById('liveApparent').textContent = Math.round(isCelsius ? d.current.apparent_temperature : (d.current.apparent_temperature * 1.8 + 32));
+                    updateCalculator();
+                }
+            } catch(e) { console.error(e); }
+        };
+
+        // Auto Locate
+        setTimeout(async () => {
+            try {
+                const res = await fetch('https://ipwho.is/?lang=zh-CN');
+                const d = await res.json();
+                if(d.success) appFetchWeather(d.latitude, d.longitude, d.city);
+            } catch(e) {}
+        }, 500);
+
     </script>
 </body>
 </html>
-
-
